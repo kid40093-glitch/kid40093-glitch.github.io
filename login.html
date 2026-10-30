@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Log in – STUDENT HUB</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top"><div class="wrap nav">
+  <a class="logo" href="index.html"><div class="logo-mark">🎓</div><div><div class="logo-text">STUDENT <span>HUB</span></div><div class="logo-sub">LEARN. CONNECT. GROW.</div></div></a>
+  <a class="btn small ghost" href="index.html">Home</a>
+</div></header>
+
+<div class="wrap">
+<div class="auth-box">
+  <h2 id="title" style="font-size:30px">Welcome back</h2>
+  <p class="small-note" id="sub">Log in to your student workspace.</p>
+  <div class="tabs"><button id="tLogin" class="on" type="button">Log in</button><button id="tSignup" type="button">Create account</button></div>
+
+  <form id="form" novalidate>
+    <div id="nameRow" style="display:none">
+      <label for="name">Full name</label>
+      <input id="name" autocomplete="name" placeholder="Your name">
+      <label for="level">Level</label>
+      <select id="level">
+        <option value="">Select your level</option>
+        <option>Secondary school</option>
+        <option>High school</option>
+        <option>University / College</option>
+        <option>Other</option>
+      </select>
+    </div>
+    <label for="email">Email</label>
+    <input id="email" type="email" autocomplete="email" placeholder="you@example.com">
+    <label for="password">Password</label>
+    <input id="password" type="password" autocomplete="current-password" placeholder="At least 8 characters">
+    <p style="margin-top:18px"><button class="btn" style="width:100%" id="submit" type="submit">Log in</button></p>
+    <p class="small-note" id="forgotRow" style="margin-top:12px;text-align:center"><a href="#" id="forgot" style="text-decoration:underline">Forgot password?</a></p>
+    <div class="msg" id="msg"></div>
+  </form>
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="auth.js"></script>
+<script>
+let mode = new URLSearchParams(location.search).get('mode') === 'signup' ? 'signup' : 'login';
+const $ = id => document.getElementById(id);
+function show(text, ok){ const m=$('msg'); m.textContent=text; m.className='msg '+(ok?'ok':'err'); }
+function setMode(m){
+  mode = m;
+  const s = m==='signup';
+  $('tLogin').className = s?'':'on'; $('tSignup').className = s?'on':'';
+  $('nameRow').style.display = s?'block':'none';
+  $('forgotRow').style.display = s?'none':'block';
+  $('title').textContent = s?'Join STUDENT HUB':'Welcome back';
+  $('sub').textContent = s?'Create your free student account.':'Log in to your student workspace.';
+  $('submit').textContent = s?'Create account':'Log in';
+  $('password').autocomplete = s?'new-password':'current-password';
+  $('msg').className='msg';
+}
+$('tLogin').onclick=()=>setMode('login');
+$('tSignup').onclick=()=>setMode('signup');
+setMode(mode);
+
+(async()=>{ if(await getSession()) location.href='dashboard.html'; })();
+
+$('form').addEventListener('submit', async e=>{
+  e.preventDefault();
+  if(!configured()){ return show('Setup needed: add your Supabase URL and key in config.js (see README).'); }
+  const email=$('email').value.trim(), password=$('password').value;
+  if(!email || !password) return show('Please enter your email and password.');
+  if(mode==='signup'){
+    if(password.length<8) return show('Password must be at least 8 characters.');
+    if(!$('name').value.trim()) return show('Please enter your name.');
+  }
+  const btn=$('submit'); btn.disabled=true;
+  const c=sb();
+  try{
+    if(mode==='signup'){
+      const { data, error } = await c.auth.signUp({
+        email, password,
+        options:{
+          data:{ full_name:$('name').value.trim(), level:$('level').value },
+          emailRedirectTo: location.origin + '/dashboard.html'
+        }
+      });
+      if(error) throw error;
+      if(data.session){ location.href='dashboard.html'; }
+      else show('Account created! Check your email and click the verification link, then log in.', true);
+    } else {
+      const { error } = await c.auth.signInWithPassword({ email, password });
+      if(error) throw error;
+      location.href='dashboard.html';
+    }
+  }catch(err){
+    show(err.message || 'Something went wrong. Please try again.');
+  }finally{ btn.disabled=false; }
+});
+
+$('forgot').onclick = async e=>{
+  e.preventDefault();
+  if(!configured()) return show('Setup needed: add your Supabase keys in config.js.');
+  const email=$('email').value.trim();
+  if(!email) return show('Type your email above first, then tap Forgot password.');
+  const { error } = await sb().auth.resetPasswordForEmail(email, { redirectTo: location.origin + '/login.html' });
+  if(error) show(error.message); else show('Password reset email sent. Check your inbox.', true);
+};
+</script>
+</body>
+</html>
