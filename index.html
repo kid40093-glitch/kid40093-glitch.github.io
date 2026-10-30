@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>STUDENT HUB – Learn. Connect. Grow.</title>
+<meta name="description" content="One place to study, connect and grow. Free student membership.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="banner">A new chapter in learning starts here · <b>Meet STUDENT HUB →</b></div>
+<header class="top"><div class="wrap nav">
+  <a class="logo" href="index.html"><div class="logo-mark">🎓</div><div><div class="logo-text">STUDENT <span>HUB</span></div><div class="logo-sub">LEARN. CONNECT. GROW.</div></div></a>
+  <a class="btn small ghost" href="login.html" id="navBtn">Log in</a>
+</div></header>
+
+<main>
+<section class="hero"><div class="wrap">
+  <div class="eyebrow">Your world of learning</div>
+  <h1>Big ambitions.<br>Brighter futures.<br><em>One student hub.</em></h1>
+  <p class="lead">A space to learn, connect, and move forward. Bringing the tools you need and the people who inspire you into one place.</p>
+  <a class="btn" href="login.html?mode=signup" id="ctaBtn">Start your journey ↗</a>
+  <div class="pills"><span>✓ Free student membership</span><span>✓ Works on phone and computer</span></div>
+</div></section>
+
+<section class="alt" id="toolkit"><div class="wrap">
+  <div class="eyebrow">Our learning toolkit</div>
+  <h2>Everything for student life.</h2>
+  <p class="lead">Building one feature at a time. Here is where we are.</p>
+  <div class="grid">
+    <div class="card"><div class="icon">👤</div><h3>Student accounts</h3><p>Register, verify your email and get your own private workspace.</p><span class="tag live">Live</span></div>
+    <div class="card"><div class="icon">🤖</div><h3>AI learning assistant</h3><p>Work through tricky concepts and revise with clear explanations.</p><span class="tag">Coming soon</span></div>
+    <div class="card"><div class="icon">📚</div><h3>Your digital library</h3><p>Study guides, notes and materials across subjects.</p><span class="tag">Coming soon</span></div>
+    <div class="card"><div class="icon">📝</div><h3>A plan for your progress</h3><p>Assignments, projects and deadlines in one organized space.</p><span class="tag">Coming soon</span></div>
+    <div class="card"><div class="icon">💬</div><h3>Better, together</h3><p>Private messaging and subject-based study groups.</p><span class="tag">Coming soon</span></div>
+    <div class="card"><div class="icon">🎥</div><h3>A seat in the study room</h3><p>Live audio and video group study sessions.</p><span class="tag">Coming soon</span></div>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <div class="eyebrow">Opportunity should be open</div>
+  <h2>Your ambition.<br>No entry fee.</h2>
+  <div class="card" style="max-width:460px;margin-top:20px">
+    <b>STUDENT MEMBERSHIP</b>
+    <div class="price">$0 <span class="small-note">/ always for membership</span></div>
+    <p style="margin:10px 0 18px">✓ Free student account<br>✓ Email-verified membership<br>✓ Essential learning tools planned to stay free</p>
+    <a class="btn" href="login.html?mode=signup">Join STUDENT HUB ↗</a>
+  </div>
+</div></section>
+
+<section class="alt faq"><div class="wrap">
+  <div class="eyebrow">A few things to know</div>
+  <h2>Good questions. Clear answers.</h2>
+  <details open><summary>Is STUDENT HUB free?</summary><p>Yes. Student membership is free, and essential learning features are intended to stay free.</p></details>
+  <details><summary>What can I use today?</summary><p>You can create an account, verify your email and open your personal dashboard. More tools are being added step by step.</p></details>
+  <details><summary>Can I use it on my phone?</summary><p>Yes. STUDENT HUB works in your phone browser and on computers.</p></details>
+  <details><summary>Can teachers and schools join?</summary><p>Educator accounts are planned and will need extra verification and approval.</p></details>
+</div></section>
+</main>
+
+<footer><div class="wrap">
+  <h2>Start where you are.<br>See where you can go.</h2>
+  <p style="margin:12px 0 22px">One small step. A world of possibilities.</p>
+  <a class="btn gold" href="login.html?mode=signup">Create your free account ↗</a>
+  <p class="small-note" style="margin-top:36px">© 2026 STUDENT HUB. Early release.</p>
+</div></footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="auth.js"></script>
+<script>
+// If already logged in, point the buttons to the dashboard
+(async()=>{ const s = await getSession(); if(s){ const b=document.getElementById('navBtn'); b.textContent='My dashboard'; b.href='dashboard.html'; document.getElementById('ctaBtn').href='dashboard.html'; } })();
+</script>
+</body>
+</html>
+y
