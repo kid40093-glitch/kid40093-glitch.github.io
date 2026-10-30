@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dashboard – STUDENT HUB</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app" id="app" style="visibility:hidden">
+  <nav class="side">
+    <a class="logo" href="index.html" style="padding:6px 8px 14px"><div class="logo-mark" style="width:36px;height:36px;font-size:18px">🎓</div><div class="logo-text" style="font-size:16px">STUDENT <span>HUB</span></div></a>
+    <a class="on" href="#">🏠 Overview</a>
+    <a class="lock" href="#" title="Coming soon">🤖 AI assistant</a>
+    <a class="lock" href="#" title="Coming soon">📚 My library</a>
+    <a class="lock" href="#" title="Coming soon">📝 Study planner</a>
+    <a class="lock" href="#" title="Coming soon">💬 Messages</a>
+    <a class="lock" href="#" title="Coming soon">👥 Groups</a>
+    <a class="lock" href="#" title="Coming soon">🎥 Study rooms</a>
+    <div class="grow"></div>
+    <a href="#" id="logout">↩ Log out</a>
+  </nav>
+
+  <main class="main">
+    <div class="eyebrow">Your workspace</div>
+    <h2 id="hello">Welcome</h2>
+    <p class="small-note" id="who"></p>
+
+    <div class="hero-card">
+      <h3 style="font-size:22px;margin-bottom:6px">Your account is live ✅</h3>
+      <p>Your STUDENT HUB account is real and secure. New tools will appear here as they are built.</p>
+    </div>
+
+    <div class="grid">
+      <div class="card"><div class="icon">🤖</div><h3>AI assistant</h3><p>Ask questions and revise with clear explanations.</p><span class="tag">Coming soon</span></div>
+      <div class="card"><div class="icon">📚</div><h3>My library</h3><p>Notes and study materials, organized by subject.</p><span class="tag">Coming soon</span></div>
+      <div class="card"><div class="icon">📝</div><h3>Study planner</h3><p>Assignments, projects and deadlines.</p><span class="tag">Coming soon</span></div>
+      <div class="card"><div class="icon">💬</div><h3>Messages and groups</h3><p>Private chats and subject study groups.</p><span class="tag">Coming soon</span></div>
+      <div class="card"><div class="icon">🎥</div><h3>Study rooms</h3><p>Live audio and video sessions.</p><span class="tag">Coming soon</span></div>
+    </div>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="auth.js"></script>
+<script>
+(async()=>{
+  const s = await getSession();
+  if(!s){ location.replace('login.html'); return; }   // protected page
+  const u = s.user;
+  const name = (u.user_metadata && u.user_metadata.full_name) || u.email.split('@')[0];
+  document.getElementById('hello').textContent = 'A good day to grow, ' + name.split(' ')[0] + '.';
+  const lvl = u.user_metadata && u.user_metadata.level;
+  document.getElementById('who').textContent = u.email + (lvl ? ' · ' + lvl : '');
+  document.getElementById('app').style.visibility = 'visible';
+  document.getElementById('logout').onclick = e=>{ e.preventDefault(); logout(); };
+})();
+</script>
+</body>
+</html>
