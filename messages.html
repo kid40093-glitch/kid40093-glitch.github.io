@@ -16,6 +16,8 @@ header a,header button{color:var(--navy);background:none;border:0;font:inherit;f
 .tabs{display:flex;background:#fff;border-bottom:1px solid var(--line)}
 .tabs button{flex:1;padding:12px;font:inherit;font-weight:700;background:none;border:0;border-bottom:3px solid transparent;color:var(--muted)}
 .tabs button.on{color:var(--navy);border-color:var(--gold)}
+.search{padding:10px 16px;background:#fff;border-bottom:1px solid var(--line)}
+.search input{margin:0}
 main{flex:1;overflow-y:auto;padding:14px 16px}
 .row{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 14px;margin-bottom:10px}
 .row .av{width:40px;height:40px;border-radius:50%;background:var(--navy);color:#fff;display:grid;place-items:center;font-weight:700;flex:none}
@@ -48,6 +50,7 @@ input,textarea{width:100%;font:inherit;padding:11px 12px;border:1px solid var(--
   <button id="tChats" class="on">Chats</button>
   <button id="tGroups">Study groups</button>
 </div>
+<div class="search" id="searchBox"><input id="q" placeholder="Search students…" autocomplete="off"></div>
 <main id="list"></main>
 <section id="chat">
   <div id="msgs"></div>
@@ -84,6 +87,14 @@ const initial = s => (s||'?').trim().charAt(0).toUpperCase();
 
 function el(tag, cls, text){ const e=document.createElement(tag); if(cls) e.className=cls; if(text!=null) e.textContent=text; return e; }
 
+function applyFilter(){
+  const q=$('#q').value.trim().toLowerCase();
+  document.querySelectorAll('#list .row[data-s]').forEach(r=>{
+    r.style.display = (!q || r.dataset.s.includes(q)) ? '' : 'none';
+  });
+}
+$('#q').oninput=applyFilter;
+
 async function init(){
   const [url,key]=cfg();
   if(!url||!key){ $('#list').appendChild(el('div','empty','Could not find your Supabase settings. Open messages.html and fill in FALLBACK_URL and FALLBACK_KEY.')); return; }
@@ -109,22 +120,38 @@ function showList(){
   closeChannel(); mode=null; target=null;
   $('#chat').style.display='none';
   $('#list').style.display='block'; $('#tabs').style.display='flex';
+  $('#searchBox').style.display='block';
+  $('#q').value=''; $('#q').placeholder = tab==='chats' ? 'Search students…' : 'Search groups…';
   $('#title').textContent='Messages';
   $('#back').onclick=null; $('#back').setAttribute('href','index.html'); $('#back').textContent='←';
   tab==='chats' ? renderPeople() : renderGroups();
 }
 
-function renderPeople(){
+async function renderPeople(){
   const box=$('#list'); box.replaceChildren();
-  const people = Object.entries(names).filter(([id])=>id!==me.id);
-  if(!people.length){ box.appendChild(el('div','empty','No other students yet. Invite a friend to sign up, then you can chat.')); return; }
-  people.forEach(([id,n])=>{
+  const others = Object.entries(names).filter(([id])=>id!==me.id);
+  if(!others.length){ box.appendChild(el('div','empty','No other students yet. Invite a friend to sign up, then you can chat.')); return; }
+
+  const {data:recent} = await db.from('messages').select('sender_id,recipient_id,created_at').order('created_at',{ascending:false}).limit(300);
+  if(tab!=='chats'||mode) return;
+  const last={};
+  (recent||[]).forEach(m=>{ const o=m.sender_id===me.id?m.recipient_id:m.sender_id; if(!last[o]) last[o]=m.created_at; });
+  others.sort((a,b)=>{
+    const la=last[a[0]]||'', lb=last[b[0]]||'';
+    if(la!==lb) return la<lb?1:-1;
+    return a[1].localeCompare(b[1]);
+  });
+
+  box.replaceChildren();
+  others.forEach(([id,n])=>{
     const r=el('div','row clickable');
+    r.dataset.s=n.toLowerCase();
     r.appendChild(el('div','av',initial(n)));
-    const t=el('div','t'); t.appendChild(el('b',null,n)); t.appendChild(el('small',null,'Tap to message')); r.appendChild(t);
+    const t=el('div','t'); t.appendChild(el('b',null,n)); t.appendChild(el('small',null,last[id]?'Recent chat':'Tap to message')); r.appendChild(t);
     r.onclick=()=>openChat('dm',{id,name:n});
     box.appendChild(r);
   });
+  applyFilter();
 }
 
 async function renderGroups(){
@@ -147,10 +174,12 @@ async function renderGroups(){
     db.from('groups').select('*').order('created_at',{ascending:false}),
     db.from('group_members').select('group_id').eq('user_id',me.id)
   ]);
+  if(tab!=='groups'||mode) return;
   const joined=new Set((mine||[]).map(m=>m.group_id));
   if(!groups||!groups.length){ box.appendChild(el('div','empty','No groups yet. Create the first one!')); return; }
   groups.forEach(g=>{
     const r=el('div','row');
+    r.dataset.s=(g.name+' '+g.subject).toLowerCase();
     r.appendChild(el('div','av',initial(g.subject)));
     const t=el('div','t'); t.appendChild(el('b',null,g.name)); t.appendChild(el('small',null,g.subject)); r.appendChild(t);
     const b=el('button',null,joined.has(g.id)?'Open':'Join');
@@ -163,13 +192,14 @@ async function renderGroups(){
     };
     r.appendChild(b); box.appendChild(r);
   });
+  applyFilter();
 }
 
 function closeChannel(){ if(chan){ db.removeChannel(chan); chan=null; } }
 
 async function openChat(m,t){
   mode=m; target=t; seen.clear();
-  $('#list').style.display='none'; $('#tabs').style.display='none';
+  $('#list').style.display='none'; $('#tabs').style.display='none'; $('#searchBox').style.display='none';
   $('#chat').style.display='flex';
   $('#title').textContent=t.name;
   $('#back').removeAttribute('href'); $('#back').textContent='←'; $('#back').onclick=showList;
