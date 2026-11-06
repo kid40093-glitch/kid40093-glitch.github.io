@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Digital Library · Student Hub</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { --navy:#12304f; --gold:#b8863b; --grey:#6b7385; --bg:#f4f6fa; --line:#e6e2da; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:'DM Sans',system-ui,sans-serif; background:var(--bg); color:var(--navy); }
+  header { padding:16px; }
+  header a { color:var(--navy); text-decoration:none; font-weight:500; }
+  main { max-width:620px; margin:0 auto; padding:0 16px 50px; }
+  h1 { font-size:28px; margin:8px 0 4px; }
+  p.sub { color:var(--grey); margin:0 0 20px; font-size:17px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:24px; padding:20px; margin-bottom:14px; }
+  .card h3 { margin:0 0 4px; font-size:18px; }
+  .meta { color:var(--grey); font-size:13px; margin:0 0 8px; }
+  .desc { color:var(--grey); font-size:15px; margin:0 0 12px; }
+  .chip { display:inline-block; background:#f3ead9; color:var(--gold); font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; padding:4px 10px; border-radius:20px; margin-right:6px; }
+  button, .btn { background:var(--navy); color:#fff; border:0; border-radius:12px; padding:11px 16px; font:inherit; font-weight:500; cursor:pointer; text-decoration:none; display:inline-block; }
+  button.gold { background:var(--gold); }
+  button.ghost, .btn.ghost { background:#fff; color:var(--navy); border:1px solid var(--line); }
+  input, select, textarea { width:100%; padding:12px 14px; border:1px solid var(--line); border-radius:12px; font:inherit; margin-bottom:10px; background:#fff; color:var(--navy); }
+  label { font-size:13px; color:var(--grey); display:block; margin-bottom:4px; }
+  .row { display:flex; gap:10px; }
+  .row > * { flex:1; }
+  #addForm { display:none; }
+  #msg { font-size:14px; margin:4px 0 10px; }
+  .err { color:#b3261e; }
+  .ok { color:#1e7a3c; }
+  .empty { text-align:center; color:var(--grey); padding:30px 10px; }
+</style>
+</head>
+<body>
+<header><a href="index.html">← Student Hub</a></header>
+
+<main>
+  <h1>Your digital library</h1>
+  <p class="sub">Study guides, notes and materials across subjects.</p>
+
+  <div id="gate" class="card" style="display:none">
+    <h3>Log in to open the library</h3>
+    <p class="desc">The library is for Student Hub members.</p>
+    <a class="btn" href="login.html">Log in</a>
+  </div>
+
+  <div id="app" style="display:none">
+    <div class="card">
+      <input id="q" placeholder="Search title or description…">
+      <select id="fSubject"><option value="">All subjects</option></select>
+      <button class="gold" id="toggleAdd">+ Share material</button>
+    </div>
+
+    <form id="addForm" class="card">
+      <h3>Share something useful</h3>
+      <label>Title</label>
+      <input id="title" required maxlength="100" placeholder="e.g. Chemistry revision notes, Chapter 4">
+      <div class="row">
+        <div>
+          <label>Subject</label>
+          <select id="subject"></select>
+        </div>
+        <div>
+          <label>Type</label>
+          <select id="kind">
+            <option>Notes</option><option>Study guide</option><option>Past paper</option><option>Textbook</option><option>Other</option>
+          </select>
+        </div>
+      </div>
+      <label>Short description (optional)</label>
+      <textarea id="description" rows="2" maxlength="300"></textarea>
+      <label>File (PDF, image or document, max 10 MB)</label>
+      <input id="file" type="file" accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,image/*">
+      <label>Or paste a link (optional)</label>
+      <input id="link" type="url" placeholder="https://…">
+      <div id="msg"></div>
+      <button type="submit" id="saveBtn">Share</button>
+      <button type="button" class="ghost" id="cancelBtn">Cancel</button>
+    </form>
+
+    <div id="list"></div>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="auth.js"></script>
+<script>
+const SUBJECTS = ["Mathematics","Physics","Chemistry","Biology","English","French","History","Geography","Computer Science","Economics","Literature","Other"];
+let me = null, all = [];
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+function fillSubjects() {
+  SUBJECTS.forEach(s => {
+    $("subject").insertAdjacentHTML("beforeend", `<option>${s}</option>`);
+    $("fSubject").insertAdjacentHTML("beforeend", `<option>${s}</option>`);
+  });
+}
+
+function say(text, cls) { $("msg").textContent = text; $("msg").className = cls || ""; }
+
+async function load() {
+  const { data, error } = await sb().from("materials").select("*").order("created_at", { ascending: false });
+  if (error) { $("list").innerHTML = `<div class="empty err">Could not load: ${esc(error.message)}</div>`; return; }
+  all = data || [];
+  render();
+}
+
+function render() {
+  const q = $("q").value.trim().toLowerCase();
+  const sub = $("fSubject").value;
+  const rows = all.filter(m =>
+    (!sub || m.subject === sub) &&
+    (!q || (m.title + " " + (m.description || "")).toLowerCase().includes(q))
+  );
+  if (!rows.length) { $("list").innerHTML = `<div class="empty">Nothing here yet. Be the first to share something.</div>`; return; }
+  $("list").innerHTML = rows.map(m => {
+    let url = m.link_url;
+    if (m.file_path) url = sb().storage.from("materials").getPublicUrl(m.file_path).data.publicUrl;
+    const date = new Date(m.created_at).toLocaleDateString();
+    return `<div class="card">
+      <div><span class="chip">${esc(m.subject)}</span><span class="chip">${esc(m.kind)}</span></div>
+      <h3 style="margin-top:10px">${esc(m.title)}</h3>
+      <p class="meta">Shared by ${esc(m.uploader_name || "a student")} · ${date}</p>
+      ${m.description ? `<p class="desc">${esc(m.description)}</p>` : ""}
+      ${url ? `<a class="btn" href="${esc(url)}" target="_blank" rel="noopener">Open</a>` : ""}
+      ${m.uploader === me.id ? ` <button class="ghost" onclick="del('${m.id}')">Delete</button>` : ""}
+    </div>`;
+  }).join("");
+}
+
+async function del(id) {
+  if (!confirm("Delete this material?")) return;
+  const m = all.find(x => x.id === id);
+  if (m && m.file_path) await sb().storage.from("materials").remove([m.file_path]);
+  const { error } = await sb().from("materials").delete().eq("id", id);
+  if (error) { alert(error.message); return; }
+  load();
+}
+
+$("addForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const file = $("file").files[0];
+  const link = $("link").value.trim();
+  if (!file && !link) { say("Add a file or a link.", "err"); return; }
+  if (file && file.size > 10 * 1024 * 1024) { say("File is over 10 MB.", "err"); return; }
+  $("saveBtn").disabled = true; say("Uploading…");
+
+  let path = null;
+  if (file) {
+    const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    path = `${me.id}/${Date.now()}-${safe}`;
+    const up = await sb().storage.from("materials").upload(path, file);
+    if (up.error) { say(up.error.message, "err"); $("saveBtn").disabled = false; return; }
+  }
+  const meta = me.user_metadata || {};
+  const name = meta.full_name || meta.name || (me.email ? me.email.split("@")[0] : "a student");
+  const { error } = await sb().from("materials").insert({
+    title: $("title").value.trim(),
+    subject: $("subject").value,
+    kind: $("kind").value,
+    description: $("description").value.trim() || null,
+    file_path: path,
+    link_url: link || null,
+    uploader_name: name
+  });
+  $("saveBtn").disabled = false;
+  if (error) { say(error.message, "err"); return; }
+  $("addForm").reset(); $("addForm").style.display = "none"; say("");
+  load();
+});
+
+$("toggleAdd").onclick = () => { $("addForm").style.display = "block"; $("addForm").scrollIntoView({ behavior: "smooth" }); };
+$("cancelBtn").onclick = () => { $("addForm").style.display = "none"; };
+$("q").oninput = render;
+$("fSubject").onchange = render;
+
+(async () => {
+  fillSubjects();
+  const s = await getSession();
+  if (!s) { $("gate").style.display = "block"; return; }
+  me = s.user;
+  $("app").style.display = "block";
+  load();
+})();
+</script>
+</body>
+</html>
