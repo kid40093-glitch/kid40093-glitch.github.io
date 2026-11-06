@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Messages · Student Hub</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#12294d;--gold:#b8863b;--bg:#f4f6fa;--card:#fff;--line:#e6e2da;--muted:#6f7a8f}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--navy);display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:10px;padding:14px 16px;background:#fff;border-bottom:1px solid var(--line)}
+header h1{font-size:18px;margin:0;flex:1}
+header a,header button{color:var(--navy);background:none;border:0;font:inherit;font-size:22px;cursor:pointer;text-decoration:none;padding:0 4px}
+.tabs{display:flex;background:#fff;border-bottom:1px solid var(--line)}
+.tabs button{flex:1;padding:12px;font:inherit;font-weight:700;background:none;border:0;border-bottom:3px solid transparent;color:var(--muted)}
+.tabs button.on{color:var(--navy);border-color:var(--gold)}
+main{flex:1;overflow-y:auto;padding:14px 16px}
+.row{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 14px;margin-bottom:10px}
+.row .av{width:40px;height:40px;border-radius:50%;background:var(--navy);color:#fff;display:grid;place-items:center;font-weight:700;flex:none}
+.row .t{flex:1;min-width:0}
+.row .t b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .t small{color:var(--muted)}
+.row button{background:var(--gold);color:#fff;border:0;border-radius:10px;padding:8px 12px;font:inherit;font-weight:700}
+.clickable{cursor:pointer}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:14px}
+.card h3{margin:0 0 10px;font-size:15px}
+input,textarea{width:100%;font:inherit;padding:11px 12px;border:1px solid var(--line);border-radius:12px;margin-bottom:8px;background:#fff;color:var(--navy)}
+.btn{background:var(--navy);color:#fff;border:0;border-radius:12px;padding:11px 16px;font:inherit;font-weight:700;width:100%}
+#chat{display:none;flex:1;flex-direction:column;min-height:0}
+#msgs{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:6px}
+.m{max-width:80%;padding:9px 13px;border-radius:16px;background:#fff;border:1px solid var(--line);align-self:flex-start;word-wrap:break-word;white-space:pre-wrap}
+.m.me{align-self:flex-end;background:var(--navy);color:#fff;border-color:var(--navy)}
+.m .who{display:block;font-size:11px;color:var(--gold);font-weight:700;margin-bottom:2px}
+#send{display:flex;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid var(--line)}
+#send input{margin:0;flex:1}
+#send button{background:var(--gold);color:#fff;border:0;border-radius:12px;padding:0 18px;font:inherit;font-weight:700}
+.empty{color:var(--muted);text-align:center;padding:30px 10px}
+</style>
+</head>
+<body>
+<header>
+  <a id="back" href="index.html">←</a>
+  <h1 id="title">Messages</h1>
+</header>
+<div class="tabs" id="tabs">
+  <button id="tChats" class="on">Chats</button>
+  <button id="tGroups">Study groups</button>
+</div>
+<main id="list"></main>
+<section id="chat">
+  <div id="msgs"></div>
+  <form id="send"><input id="txt" placeholder="Type a message…" autocomplete="off" maxlength="2000"><button>Send</button></form>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script>
+// If your config.js uses different names, paste your values here instead:
+const FALLBACK_URL = '';
+const FALLBACK_KEY = '';
+
+function cfg(){
+  const tries = [
+    () => [SUPABASE_URL, SUPABASE_ANON_KEY],
+    () => [SUPABASE_URL, SUPABASE_KEY],
+    () => [supabaseUrl, supabaseAnonKey],
+    () => [supabaseUrl, supabaseKey],
+    () => [window.SUPABASE_URL, window.SUPABASE_ANON_KEY],
+    () => [window.SUPABASE_CONFIG.url, window.SUPABASE_CONFIG.anonKey]
+  ];
+  for (const t of tries){ try{ const [u,k]=t(); if(u&&k) return [u,k]; }catch(e){} }
+  return [FALLBACK_URL, FALLBACK_KEY];
+}
+
+const $ = s => document.querySelector(s);
+let db, me, tab='chats', mode=null, target=null, chan=null;
+const names = {};
+const seen = new Set();
+
+const nameOf = p => p.full_name || p.name || p.username || p.display_name || (p.email ? p.email.split('@')[0] : 'Student');
+const initial = s => (s||'?').trim().charAt(0).toUpperCase();
+
+function el(tag, cls, text){ const e=document.createElement(tag); if(cls) e.className=cls; if(text!=null) e.textContent=text; return e; }
+
+async function init(){
+  const [url,key]=cfg();
+  if(!url||!key){ $('#list').appendChild(el('div','empty','Could not find your Supabase settings. Open messages.html and fill in FALLBACK_URL and FALLBACK_KEY.')); return; }
+  db = supabase.createClient(url,key);
+  const {data:{session}} = await db.auth.getSession();
+  if(!session){ location.href='login.html'; return; }
+  me = session.user;
+  const {data:profs} = await db.from('profiles').select('*');
+  (profs||[]).forEach(p => names[p.id] = nameOf(p));
+  showList();
+}
+
+function setTab(t){
+  tab=t;
+  $('#tChats').classList.toggle('on',t==='chats');
+  $('#tGroups').classList.toggle('on',t==='groups');
+  showList();
+}
+$('#tChats').onclick=()=>setTab('chats');
+$('#tGroups').onclick=()=>setTab('groups');
+
+function showList(){
+  closeChannel(); mode=null; target=null;
+  $('#chat').style.display='none';
+  $('#list').style.display='block'; $('#tabs').style.display='flex';
+  $('#title').textContent='Messages';
+  $('#back').onclick=null; $('#back').setAttribute('href','index.html'); $('#back').textContent='←';
+  tab==='chats' ? renderPeople() : renderGroups();
+}
+
+function renderPeople(){
+  const box=$('#list'); box.replaceChildren();
+  const people = Object.entries(names).filter(([id])=>id!==me.id);
+  if(!people.length){ box.appendChild(el('div','empty','No other students yet. Invite a friend to sign up, then you can chat.')); return; }
+  people.forEach(([id,n])=>{
+    const r=el('div','row clickable');
+    r.appendChild(el('div','av',initial(n)));
+    const t=el('div','t'); t.appendChild(el('b',null,n)); t.appendChild(el('small',null,'Tap to message')); r.appendChild(t);
+    r.onclick=()=>openChat('dm',{id,name:n});
+    box.appendChild(r);
+  });
+}
+
+async function renderGroups(){
+  const box=$('#list'); box.replaceChildren();
+  const card=el('div','card'); card.appendChild(el('h3',null,'Start a study group'));
+  const gn=el('input'); gn.placeholder='Group name (e.g. Year 12 Chemistry)'; gn.maxLength=60;
+  const gs=el('input'); gs.placeholder='Subject (e.g. Chemistry)'; gs.maxLength=40;
+  const gb=el('button','btn','Create group');
+  gb.onclick=async()=>{
+    if(!gn.value.trim()||!gs.value.trim()) return;
+    gb.disabled=true;
+    const {data,error}=await db.from('groups').insert({name:gn.value.trim(),subject:gs.value.trim()}).select().single();
+    gb.disabled=false;
+    if(error){ alert('Could not create group: '+error.message); return; }
+    openChat('group',{id:data.id,name:data.name});
+  };
+  card.append(gn,gs,gb); box.appendChild(card);
+
+  const [{data:groups},{data:mine}] = await Promise.all([
+    db.from('groups').select('*').order('created_at',{ascending:false}),
+    db.from('group_members').select('group_id').eq('user_id',me.id)
+  ]);
+  const joined=new Set((mine||[]).map(m=>m.group_id));
+  if(!groups||!groups.length){ box.appendChild(el('div','empty','No groups yet. Create the first one!')); return; }
+  groups.forEach(g=>{
+    const r=el('div','row');
+    r.appendChild(el('div','av',initial(g.subject)));
+    const t=el('div','t'); t.appendChild(el('b',null,g.name)); t.appendChild(el('small',null,g.subject)); r.appendChild(t);
+    const b=el('button',null,joined.has(g.id)?'Open':'Join');
+    b.onclick=async()=>{
+      if(!joined.has(g.id)){
+        const {error}=await db.from('group_members').insert({group_id:g.id});
+        if(error){ alert('Could not join: '+error.message); return; }
+      }
+      openChat('group',{id:g.id,name:g.name});
+    };
+    r.appendChild(b); box.appendChild(r);
+  });
+}
+
+function closeChannel(){ if(chan){ db.removeChannel(chan); chan=null; } }
+
+async function openChat(m,t){
+  mode=m; target=t; seen.clear();
+  $('#list').style.display='none'; $('#tabs').style.display='none';
+  $('#chat').style.display='flex';
+  $('#title').textContent=t.name;
+  $('#back').removeAttribute('href'); $('#back').textContent='←'; $('#back').onclick=showList;
+  const box=$('#msgs'); box.replaceChildren();
+
+  let rows;
+  if(m==='dm'){
+    const f=`and(sender_id.eq.${me.id},recipient_id.eq.${t.id}),and(sender_id.eq.${t.id},recipient_id.eq.${me.id})`;
+    ({data:rows}=await db.from('messages').select('*').or(f).order('created_at').limit(200));
+  } else {
+    ({data:rows}=await db.from('group_messages').select('*').eq('group_id',t.id).order('created_at').limit(200));
+  }
+  (rows||[]).forEach(addMsg);
+
+  const table = m==='dm' ? 'messages' : 'group_messages';
+  chan = db.channel('chat-'+m+'-'+t.id)
+    .on('postgres_changes',{event:'INSERT',schema:'public',table},payload=>{
+      const r=payload.new;
+      if(m==='dm'){
+        const ok=(r.sender_id===me.id&&r.recipient_id===t.id)||(r.sender_id===t.id&&r.recipient_id===me.id);
+        if(ok) addMsg(r);
+      } else if(r.group_id===t.id) addMsg(r);
+    }).subscribe();
+}
+
+function addMsg(r){
+  if(seen.has(r.id)) return; seen.add(r.id);
+  const box=$('#msgs'), mine=r.sender_id===me.id;
+  const b=el('div','m'+(mine?' me':''));
+  if(mode==='group'&&!mine) b.appendChild(el('span','who',names[r.sender_id]||'Member'));
+  b.appendChild(document.createTextNode(r.body));
+  box.appendChild(b);
+  box.scrollTop=box.scrollHeight;
+}
+
+$('#send').onsubmit=async e=>{
+  e.preventDefault();
+  const body=$('#txt').value.trim(); if(!body||!target) return;
+  $('#txt').value='';
+  let res;
+  if(mode==='dm') res=await db.from('messages').insert({recipient_id:target.id,body}).select().single();
+  else res=await db.from('group_messages').insert({group_id:target.id,body}).select().single();
+  if(res.error){ alert('Could not send: '+res.error.message); $('#txt').value=body; return; }
+  addMsg(res.data);
+};
+
+init();
+</script>
+</body>
+</html>
