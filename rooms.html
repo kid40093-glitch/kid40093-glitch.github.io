@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Study Rooms · Student Hub</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { --navy:#12304f; --gold:#b8863b; --grey:#6b7385; --bg:#f4f6fa; --line:#e6e2da; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:'DM Sans',system-ui,sans-serif; background:var(--bg); color:var(--navy); }
+  header { padding:16px; display:flex; justify-content:space-between; align-items:center; }
+  header a { color:var(--navy); text-decoration:none; font-weight:500; }
+  main { max-width:560px; margin:0 auto; padding:0 16px 40px; }
+  h1 { font-size:28px; margin:8px 0 4px; }
+  p.sub { color:var(--grey); margin:0 0 20px; font-size:17px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:24px; padding:20px; margin-bottom:14px; }
+  .card h3 { margin:0 0 4px; font-size:18px; }
+  .card p { margin:0 0 14px; color:var(--grey); font-size:15px; }
+  button { background:var(--navy); color:#fff; border:0; border-radius:12px; padding:12px 18px; font:inherit; font-weight:500; cursor:pointer; }
+  button.gold { background:var(--gold); }
+  input { width:100%; padding:12px 14px; border:1px solid var(--line); border-radius:12px; font:inherit; margin-bottom:10px; }
+  label { font-size:13px; color:var(--grey); display:block; margin-bottom:4px; }
+  #stage { display:none; position:fixed; inset:0; background:#000; z-index:10; flex-direction:column; }
+  #stage.on { display:flex; }
+  #bar { padding:10px 14px; background:var(--navy); color:#fff; display:flex; justify-content:space-between; align-items:center; }
+  #jitsi { flex:1; }
+</style>
+</head>
+<body>
+<header>
+  <a href="index.html">← Student Hub</a>
+</header>
+
+<main>
+  <h1>A seat in the study room</h1>
+  <p class="sub">Live audio and video group study sessions.</p>
+
+  <div class="card">
+    <label for="name">Your name</label>
+    <input id="name" placeholder="e.g. Amina" maxlength="30">
+  </div>
+
+  <div id="list"></div>
+
+  <div class="card">
+    <h3>Make your own room</h3>
+    <p>Pick any name. Friends who type the same name join you.</p>
+    <input id="custom" placeholder="e.g. chemistry-finals" maxlength="40">
+    <button class="gold" onclick="joinCustom()">Join room</button>
+  </div>
+</main>
+
+<div id="stage">
+  <div id="bar"><span id="roomTitle"></span><button onclick="leave()">Leave</button></div>
+  <div id="jitsi"></div>
+</div>
+
+<script src="https://meet.jit.si/external_api.js"></script>
+<script>
+  const PREFIX = "studenthub-kid40093-";
+  const ROOMS = [
+    { id: "maths", title: "Mathematics", desc: "Problems, past papers, and working things out together." },
+    { id: "sciences", title: "Sciences", desc: "Physics, chemistry, biology." },
+    { id: "languages", title: "Languages & Literature", desc: "Essays, reading, speaking practice." },
+    { id: "quiet", title: "Quiet focus room", desc: "Cameras on, mics off. Just study alongside others." }
+  ];
+  let api = null;
+
+  const list = document.getElementById("list");
+  ROOMS.forEach(r => {
+    const d = document.createElement("div");
+    d.className = "card";
+    d.innerHTML = `<h3>${r.title}</h3><p>${r.desc}</p><button>Join</button>`;
+    d.querySelector("button").onclick = () => join(r.id, r.title);
+    list.appendChild(d);
+  });
+
+  function slug(s) { return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""); }
+  function joinCustom() {
+    const v = slug(document.getElementById("custom").value);
+    if (!v) { alert("Type a room name first."); return; }
+    join("c-" + v, v);
+  }
+  function join(id, title) {
+    const name = document.getElementById("name").value.trim() || "Student";
+    document.getElementById("roomTitle").textContent = title;
+    document.getElementById("stage").classList.add("on");
+    api = new JitsiMeetExternalAPI("meet.jit.si", {
+      roomName: PREFIX + id,
+      parentNode: document.getElementById("jitsi"),
+      userInfo: { displayName: name },
+      configOverwrite: { prejoinPageEnabled: false, startWithVideoMuted: id === "quiet" ? false : true, startWithAudioMuted: true },
+      interfaceConfigOverwrite: { MOBILE_APP_PROMO: false }
+    });
+    api.addListener("readyToClose", leave);
+  }
+  function leave() {
+    if (api) { api.dispose(); api = null; }
+    document.getElementById("stage").classList.remove("on");
+  }
+</script>
+</body>
+</html>
