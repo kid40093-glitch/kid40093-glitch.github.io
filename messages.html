@@ -39,6 +39,7 @@ input,textarea{width:100%;font:inherit;padding:11px 12px;border:1px solid var(--
 #send input{margin:0;flex:1}
 #send button{background:var(--gold);color:#fff;border:0;border-radius:12px;padding:0 18px;font:inherit;font-weight:700}
 .empty{color:var(--muted);text-align:center;padding:30px 10px}
+.badge{background:#d93025;color:#fff;border-radius:999px;min-width:22px;height:22px;padding:0 7px;font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
 </style>
 </head>
 <body>
@@ -59,6 +60,7 @@ input,textarea{width:100%;font:inherit;padding:11px 12px;border:1px solid var(--
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
+<script src="notify.js"></script>
 <script>
 // If your config.js uses different names, paste your values here instead:
 const FALLBACK_URL = '';
@@ -102,6 +104,7 @@ async function init(){
   const {data:{session}} = await db.auth.getSession();
   if(!session){ location.href='login.html'; return; }
   me = session.user;
+  Notify.start(db, me.id);
   const {data:profs} = await db.from('profiles').select('*');
   (profs||[]).forEach(p => names[p.id] = nameOf(p));
   showList();
@@ -132,6 +135,7 @@ async function renderPeople(){
   const others = Object.entries(names).filter(([id])=>id!==me.id);
   if(!others.length){ box.appendChild(el('div','empty','No other students yet. Invite a friend to sign up, then you can chat.')); return; }
 
+  await Notify.refresh();
   const {data:recent} = await db.from('messages').select('sender_id,recipient_id,created_at').order('created_at',{ascending:false}).limit(300);
   if(tab!=='chats'||mode) return;
   const last={};
@@ -148,6 +152,8 @@ async function renderPeople(){
     r.dataset.s=n.toLowerCase();
     r.appendChild(el('div','av',initial(n)));
     const t=el('div','t'); t.appendChild(el('b',null,n)); t.appendChild(el('small',null,last[id]?'Recent chat':'Tap to message')); r.appendChild(t);
+    const u=Notify.countFor('dm',id);
+    if(u) r.appendChild(el('span','badge',String(u)));
     r.onclick=()=>openChat('dm',{id,name:n});
     box.appendChild(r);
   });
@@ -170,6 +176,7 @@ async function renderGroups(){
   };
   card.append(gn,gs,gb); box.appendChild(card);
 
+  await Notify.refresh();
   const [{data:groups},{data:mine}] = await Promise.all([
     db.from('groups').select('*').order('created_at',{ascending:false}),
     db.from('group_members').select('group_id').eq('user_id',me.id)
@@ -182,6 +189,8 @@ async function renderGroups(){
     r.dataset.s=(g.name+' '+g.subject).toLowerCase();
     r.appendChild(el('div','av',initial(g.subject)));
     const t=el('div','t'); t.appendChild(el('b',null,g.name)); t.appendChild(el('small',null,g.subject)); r.appendChild(t);
+    const u=Notify.countFor('grp',g.id);
+    if(u) r.appendChild(el('span','badge',String(u)));
     const b=el('button',null,joined.has(g.id)?'Open':'Join');
     b.onclick=async()=>{
       if(!joined.has(g.id)){
@@ -213,6 +222,7 @@ async function openChat(m,t){
     ({data:rows}=await db.from('group_messages').select('*').eq('group_id',t.id).order('created_at').limit(200));
   }
   (rows||[]).forEach(addMsg);
+  Notify.markRead(m==='dm'?'dm':'grp', t.id, rows&&rows.length ? rows[rows.length-1].created_at : null);
 
   const table = m==='dm' ? 'messages' : 'group_messages';
   chan = db.channel('chat-'+m+'-'+t.id)
@@ -233,6 +243,7 @@ function addMsg(r){
   b.appendChild(document.createTextNode(r.body));
   box.appendChild(b);
   box.scrollTop=box.scrollHeight;
+  if(!mine && target) Notify.markRead(mode==='dm'?'dm':'grp', target.id, r.created_at);
 }
 
 $('#send').onsubmit=async e=>{
